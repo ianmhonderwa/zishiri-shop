@@ -1,0 +1,50 @@
+name: Build Android APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the website
+        run: |
+          npm install --no-audit --no-fund
+          npx vite build --base=./
+      - name: Copy the website into the app
+        run: |
+          A=android/app/src/main/assets
+          rm -rf $A && mkdir -p $A
+          cp -r dist/. $A/
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Use the Android tools already on the machine
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "sdk.dir=/usr/local/lib/android/sdk" > android/local.properties
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build the APK
+        run: cd android && gradle assembleDebug --stacktrace
+      - name: Rename the APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ZishiriEnterprises.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZishiriEnterprises-apk
+          path: ZishiriEnterprises.apk
+      - name: Publish the APK under Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Zishiri Enterprises 1.0.${{ github.run_number }}
+          files: ZishiriEnterprises.apk
